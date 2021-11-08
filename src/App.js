@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo, useRef } from "react";
+import detectPrefixes from "./util/detect";
 import "./App.css";
 import img2 from "./images/2.png";
 import img3 from "./images/3.png";
@@ -7,7 +8,8 @@ import img5 from "./images/5.png";
 import img6 from "./images/6.png";
 
 function App() {
-  const list = [
+  const containerRef = useRef(null);
+  const [list, setList] = useState([
     {
       src: img2,
     },
@@ -23,15 +25,13 @@ function App() {
     {
       src: img6,
     },
-  ];
-
+  ]);
   const [basicdata, setBasicdata] = useState({
-    currentPage: 0, // 默认首图的序列
     start: {
       // 记录起始位置
       x: 0,
       y: 0,
-      t: Date.now(),
+      t: null,
     },
     end: {
       // 记录终点位置
@@ -41,67 +41,45 @@ function App() {
   });
 
   const [temporaryData, setTemporaryData] = useState({
-    visible: 3, // 记录默认显示堆叠数visible
-    poswidth: "", // 记录位移
-    posheight: "", // 记录位移
-    lastPosWidth: "", // 记录上次最终位移
-    lastPosHeight: "", // 记录上次最终位移
-    tracking: false, // 是否在滑动，防止多次操作，影响体验
-    animation: false, // 首图是否启用动画效果，默认为否
-    opacity: 1, // 记录首图透明度
-    swipe: false, // onTransition判定条件
+    prefixes: detectPrefixes(),
+    offsetY: "",
+    poswidth: 0,
+    posheight: 0,
+    lastPosWidth: 0,
+    lastPosHeight: 0,
+    lastZindex: 0,
+    rotate: 0,
+    lastRotate: 0,
+    visible: 3,
+    tracking: false,
+    animation: false,
+    currentPage: 0,
+    opacity: 1,
+    lastOpacity: 0,
+    swipe: false,
+    zIndex: 10,
   });
 
-  const transformStyle = (index) => {
-    let style = null;
-    // 非首页
-    if (index > basicdata.currentPage) {
-      //在页面上可视有多少张
-      const visible = temporaryData.visible;
-      // 在Zindex上的顺序
-      const perIndex = index - basicdata.currentPage;
-      // visible可见数量前滑块的样式
-      if (index <= basicdata.currentPage + visible - 1) {
-        style = {
-          opacity: 1,
-          transform: `translate3D(0,0, ${-perIndex * 60}px)`,
-          zIndex: visible - index + basicdata.currentPage,
-          transitionTimingFunction: "ease",
-          transitionDuration: "300ms",
-        };
-      } else {
-        // visible不可见数量前滑块的样式
-        style = {
-          zIndex: -1,
-          transform: `translate3D(0,0, ${-visible * 60}px)`,
-        };
-      }
-    } else if (index === basicdata.currentPage - 1) {
-      style = {
-        zIndex: -1,
-        opacity: 0,
-        transform: `translate3D(${temporaryData.lastPosWidth}px, ${temporaryData.lastPosHeight}px, 0px)`,
-        transitionTimingFunction: "ease",
-        transitionDuration: "300ms",
-      };
-    } else if (index === basicdata.currentPage) {
-      //如果是首页
-      style = {
-        zIndex: 10,
-        opacity: temporaryData.opacity,
-        transform: `translate3D(${temporaryData.poswidth}px, ${temporaryData.posheight}px, 0px)`,
-      };
-      if (temporaryData.animation) {
-        style["transitionTimingFunction"] = "ease";
-        style["transitionDuration"] = 300 + "ms";
-      }
-    }
-    return style;
-  };
+  // offsetRatio
+  const offsetRatio = useMemo(() => {
+    const width = containerRef.current?.offsetWidth;
+    const height = containerRef.current?.offsetHeight;
+    const offsetWidth = width - Math.abs(temporaryData.poswidth);
+    const offsetHeight = height - Math.abs(temporaryData.posheight);
+    const ratio = 1 - (offsetWidth * offsetHeight) / (width * height) || 0;
+    return ratio > 1 ? 1 : ratio;
+  }, [temporaryData.poswidth, temporaryData.posheight]);
+
+  //offsetWidthRatio
+  const offsetWidthRatio = useMemo(() => {
+    const width = containerRef.current?.offsetWidth;
+    const offsetWidth = width - Math.abs(temporaryData.poswidth);
+    const ratio = 1 - offsetWidth / width || 0;
+    return ratio;
+  }, [temporaryData.poswidth]);
 
   const onTouchStart = (e) => {
-    if (temporaryData.tracking) return false;
-
+    if (temporaryData.tracking) return;
     if (e.type === "touchstart") {
       if (e.touches.length > 1) {
         setTemporaryData({
@@ -126,12 +104,21 @@ function App() {
             },
           },
         });
+        setTemporaryData({
+          ...temporaryData,
+          ...{
+            offsetY:
+              e.targetTouches[0].pageY -
+              containerRef.current?.offsetParent.offsetTop,
+          },
+        });
       }
     } else {
       setBasicdata({
         ...basicdata,
         ...{
           start: {
+            t: new Date().getTime(),
             x: e.clientX,
             y: e.clientY,
           },
@@ -139,6 +126,12 @@ function App() {
             x: e.clientX,
             y: e.clientY,
           },
+        },
+      });
+      setTemporaryData({
+        ...temporaryData,
+        ...{
+          offsetY: e.offsetY,
         },
       });
     }
@@ -179,6 +172,7 @@ function App() {
         ...{
           poswidth: basicdata.end.x - basicdata.start.x,
           posheight: basicdata.end.y - basicdata.start.y,
+          rotate: rotateDirection() * offsetWidthRatio * 15 * angleRatio(),
         },
       });
     }
@@ -193,8 +187,8 @@ function App() {
       },
     });
     // 滑动结束，触发判断
-    // 简单判断滑动宽度超出100像素时触发滑出
-    if (Math.abs(temporaryData.poswidth) >= 100) {
+    // 判断划出面积是否大于0.4
+    if (offsetRatio >= 0.4) {
       // 最终位移简单设定为x轴200像素的偏移
       const ratio = Math.abs(temporaryData.posheight / temporaryData.poswidth);
       setTemporaryData({
@@ -210,26 +204,9 @@ function App() {
               : -Math.abs(temporaryData.poswidth * ratio),
           opacity: 0,
           swipe: true,
-          lastPosHeight: temporaryData.posheight,
-          lastPosWidth: temporaryData.poswidth,
         },
       });
-      setBasicdata({
-        ...basicdata,
-        ...{
-          currentPage: basicdata.currentPage + 1,
-        },
-      });
-      setTimeout(() => {
-        setTemporaryData({
-          ...temporaryData,
-          ...{
-            poswidth: 0,
-            posheight: 0,
-            opacity: 1,
-          },
-        });
-      });
+      nextTick();
     } else {
       setTemporaryData({
         ...temporaryData,
@@ -237,50 +214,186 @@ function App() {
           poswidth: 0,
           posheight: 0,
           swipe: false,
+          rotate: 0,
         },
       });
     }
   };
 
+  const nextTick = () => {
+    setTemporaryData({
+      ...temporaryData,
+      ...{
+        lastPosWidth: temporaryData.poswidth,
+        lastPosHeight: temporaryData.posheight,
+        lastRotate: temporaryData.rotate,
+        lastZindex: 20,
+        currentPage:
+          temporaryData.currentPage === list.length - 1
+            ? 0
+            : temporaryData.currentPage + 1,
+      },
+    });
+    // currentPage切换，整体dom进行变化，把第一层滑动置最低
+    setTimeout(() => {
+      setTemporaryData({
+        ...temporaryData,
+        ...{
+          poswidth: 0,
+          posheight: 0,
+          opacity: 1,
+          rotate: 0,
+        },
+      });
+    }, 0);
+  };
+
   const onTransitionEnd = (index) => {
-    if (temporaryData.swipe && index === basicdata.currentPage - 1) {
+    const lastPage =
+      temporaryData.currentPage === 0
+        ? list.length - 1
+        : temporaryData.currentPage - 1;
+    if (temporaryData.swipe && index === lastPage) {
       setTemporaryData({
         ...temporaryData,
         ...{
           animation: true,
           lastPosWidth: 0,
           lastPosHeight: 0,
+          lastOpacity: 0,
+          lastRotate: 0,
           swipe: false,
+          lastZindex: -1,
         },
       });
     }
   };
 
+  const rotateDirection = () => {
+    return temporaryData?.poswidth <= 0 ? -1 : 1;
+  };
+
+  const angleRatio = () => {
+    const height = containerRef.current?.offsetHeight;
+    const offsetY = temporaryData.offsetY;
+    const ratio = -1 * ((2 * offsetY) / height - 1) || 0;
+    return ratio;
+  };
+
+  const inStack = (index, currentPage) => {
+    let stack = [];
+    let visible = temporaryData.visible;
+    let length = list.length;
+    for (let i = 0; i < visible; i++) {
+      if (currentPage + i < length) {
+        stack.push(currentPage + i);
+      } else {
+        stack.push(currentPage + i - length);
+      }
+    }
+    return stack.indexOf(index) >= 0;
+  };
+
+  const transform = (index) => {
+    let currentPage = temporaryData.currentPage;
+    let length = list.length;
+    let lastPage = currentPage === 0 ? list.length - 1 : currentPage - 1;
+    let style = {};
+    let visible = temporaryData.visible;
+    if (index === temporaryData.currentPage) {
+      return;
+    }
+    if (inStack(index, currentPage)) {
+      let perIndex =
+        index - currentPage > 0
+          ? index - currentPage
+          : index - currentPage + length;
+      style["opacity"] = "1";
+      style["transform"] =
+        "translate3D(0,0," + -1 * 60 * (perIndex - offsetRatio) + "px" + ")";
+      style["zIndex"] = visible - perIndex;
+      if (!temporaryData.tracking) {
+        style[temporaryData.prefixes.transition + "TimingFunction"] = "ease";
+        style[temporaryData.prefixes.transition + "Duration"] = 300 + "ms";
+      }
+    } else if (index === lastPage) {
+      style["transform"] =
+        "translate3D(" +
+        temporaryData.lastPosWidth +
+        "px" +
+        "," +
+        temporaryData.lastPosHeight +
+        "px" +
+        ",0px) " +
+        "rotate(" +
+        temporaryData.lastRotate +
+        "deg)";
+      style["opacity"] = temporaryData.lastOpacity;
+      style["zIndex"] = temporaryData.lastZindex;
+      style[temporaryData.prefixes.transition + "TimingFunction"] = "ease";
+      style[temporaryData.prefixes.transition + "Duration"] = 300 + "ms";
+    } else {
+      style["zIndex"] = "-1";
+      style["transform"] = "translate3D(0,0," + -1 * visible * 60 + "px" + ")";
+    }
+    return style;
+  };
+
+  const transformIndex = (index) => {
+    if (index === temporaryData.currentPage) {
+      let style = {};
+      style["transform"] =
+        "translate3D(" +
+        temporaryData.poswidth +
+        "px" +
+        "," +
+        temporaryData.posheight +
+        "px" +
+        ",0px) " +
+        "rotate(" +
+        temporaryData.rotate +
+        "deg)";
+      style["opacity"] = temporaryData.opacity;
+      style["zIndex"] = 10;
+      if (temporaryData.animation) {
+        style[temporaryData.prefixes.transition + "TimingFunction"] = "ease";
+        style[temporaryData.prefixes.transition + "Duration"] =
+          (temporaryData.animation ? 300 : 0) + "ms";
+      }
+      return style;
+    }
+  };
+
   return (
-    <div className="stack-wrapper">
-      <ul className="stack">
-        {list.map((item, index) => {
-          const style = transformStyle(index);
-          return (
-            <li
-              key={index}
-              className="stack-item"
-              style={style}
-              onTouchStart={onTouchStart}
-              onTouchMove={onTouchMove}
-              onTouchEnd={onTouchEnd}
-              onTouchCancel={onTouchEnd}
-              onMouseDown={onTouchStart}
-              onMouseMove={onTouchMove}
-              onMouseUp={onTouchEnd}
-              onMouseOut={onTouchEnd}
-              onTransitionEnd={(e) => onTransitionEnd(index)}
-            >
-              <img src={item.src} />
-            </li>
-          );
-        })}
-      </ul>
+    <div className="app">
+      <div className="stack-wrapper">
+        <ul className="stack" ref={containerRef}>
+          {list.map((item, index) => {
+            const style =
+              index === temporaryData.currentPage
+                ? transformIndex(index)
+                : transform(index);
+            return (
+              <li
+                key={index}
+                className="stack-item"
+                style={style}
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+                onTouchCancel={onTouchEnd}
+                onMouseDown={onTouchStart}
+                onMouseMove={onTouchMove}
+                onMouseUp={onTouchEnd}
+                onMouseOut={onTouchEnd}
+                onTransitionEnd={(e) => onTransitionEnd(index)}
+              >
+                <img src={item.src} />
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </div>
   );
 }
