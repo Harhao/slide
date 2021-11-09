@@ -1,98 +1,106 @@
-import { useState, useMemo, useRef } from "react";
-import detectPrefixes from "./util/detect";
+import React, { createRef } from "react";
 import "./App.css";
+import detectPrefixes from "./util/detect";
 import img2 from "./images/2.png";
 import img3 from "./images/3.png";
 import img4 from "./images/4.png";
 import img5 from "./images/5.png";
 import img6 from "./images/6.png";
 
-function App() {
-  const containerRef = useRef(null);
-  const [list, setList] = useState([
-    {
-      src: img2,
-    },
-    {
-      src: img3,
-    },
-    {
-      src: img4,
-    },
-    {
-      src: img5,
-    },
-    {
-      src: img6,
-    },
-  ]);
-  const [basicdata, setBasicdata] = useState({
-    start: {
-      // 记录起始位置
-      x: 0,
-      y: 0,
-      t: null,
-    },
-    end: {
-      // 记录终点位置
-      x: 0,
-      y: 0,
-    },
-  });
+export default class App extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      list: [
+        {
+          src: img2,
+        },
+        {
+          src: img3,
+        },
+        {
+          src: img4,
+        },
+        {
+          src: img5,
+        },
+        {
+          src: img6,
+        },
+      ],
+      basicdata: {
+        start: {
+          // 记录起始位置
+          x: 0,
+          y: 0,
+          t: null,
+        },
+        end: {
+          // 记录终点位置
+          x: 0,
+          y: 0,
+        },
+      },
+      temporaryData: {
+        prefixes: detectPrefixes(),
+        offsetY: "",
+        poswidth: 0,
+        posheight: 0,
+        lastPosWidth: 0,
+        lastPosHeight: 0,
+        lastZindex: 0,
+        rotate: 0,
+        lastRotate: 0,
+        visible: 3,
+        tracking: false,
+        animation: false,
+        currentPage: 0,
+        opacity: 1,
+        lastOpacity: 0,
+        swipe: false,
+        zIndex: 10,
+      },
+    };
+    this.containerRef = createRef(null);
+  }
 
-  const [temporaryData, setTemporaryData] = useState({
-    prefixes: detectPrefixes(),
-    offsetY: "",
-    poswidth: 0,
-    posheight: 0,
-    lastPosWidth: 0,
-    lastPosHeight: 0,
-    lastZindex: 0,
-    rotate: 0,
-    lastRotate: 0,
-    visible: 3,
-    tracking: false,
-    animation: false,
-    currentPage: 0,
-    opacity: 1,
-    lastOpacity: 0,
-    swipe: false,
-    zIndex: 10,
-  });
-
-  // offsetRatio
-  const offsetRatio = useMemo(() => {
-    const width = containerRef.current?.offsetWidth;
-    const height = containerRef.current?.offsetHeight;
-    const offsetWidth = width - Math.abs(temporaryData.poswidth);
-    const offsetHeight = height - Math.abs(temporaryData.posheight);
+  offsetRatio = () => {
+    const width = this.containerRef.current?.offsetWidth;
+    const height = this.containerRef.current?.offsetHeight;
+    const offsetWidth = width - Math.abs(this.state.temporaryData.poswidth);
+    const offsetHeight = height - Math.abs(this.state.temporaryData.posheight);
     const ratio = 1 - (offsetWidth * offsetHeight) / (width * height) || 0;
     return ratio > 1 ? 1 : ratio;
-  }, [temporaryData.poswidth, temporaryData.posheight]);
+  };
 
-  //offsetWidthRatio
-  const offsetWidthRatio = useMemo(() => {
-    const width = containerRef.current?.offsetWidth;
-    const offsetWidth = width - Math.abs(temporaryData.poswidth);
+  offsetWidthRatio = () => {
+    const width = this.containerRef.current?.offsetWidth;
+    const offsetWidth = width - Math.abs(this.state.temporaryData.poswidth);
     const ratio = 1 - offsetWidth / width || 0;
     return ratio;
-  }, [temporaryData.poswidth]);
+  };
+  angleRatio = () => {
+    const height = this.containerRef.current?.offsetHeight;
+    const offsetY = this.state.temporaryData.offsetY;
+    const ratio = -1 * ((2 * offsetY) / height - 1) || 0;
+    return ratio;
+  };
 
-  const onTouchStart = (e) => {
-    if (temporaryData.tracking) return;
+  onTouchStart = (e) => {
+    if (this.state.temporaryData.tracking) return;
     if (e.type === "touchstart") {
       if (e.touches.length > 1) {
-        setTemporaryData({
-          ...temporaryData,
-          ...{
+        this.setState({
+          temporaryData: {
+            ...this.state.temporaryData,
             tracking: false,
           },
         });
         return;
       } else {
-        setBasicdata({
-          ...basicdata,
-          ...{
+        this.setState({
+          basicdata: {
+            ...this.state.basicdata,
             start: {
               t: new Date().getTime(),
               x: e.targetTouches[0].clientX,
@@ -103,20 +111,18 @@ function App() {
               y: e.targetTouches[0].clientY,
             },
           },
-        });
-        setTemporaryData({
-          ...temporaryData,
-          ...{
+          temporaryData: {
+            ...this.state.temporaryData,
             offsetY:
               e.targetTouches[0].pageY -
-              containerRef.current?.offsetParent.offsetTop,
+              this.containerRef.current?.offsetParent.offsetTop,
           },
         });
       }
     } else {
-      setBasicdata({
-        ...basicdata,
-        ...{
+      this.setState({
+        basicdata: {
+          ...this.state.basicdata,
           start: {
             t: new Date().getTime(),
             x: e.clientX,
@@ -127,29 +133,30 @@ function App() {
             y: e.clientY,
           },
         },
-      });
-      setTemporaryData({
-        ...temporaryData,
-        ...{
+        temporaryData: {
+          ...this.state.temporaryData,
           offsetY: e.offsetY,
         },
       });
     }
-    setTemporaryData({
-      ...temporaryData,
-      ...{
+    this.setState({
+      temporaryData: {
+        ...this.state.temporaryData,
         tracking: true,
         animation: false,
       },
     });
   };
 
-  const onTouchMove = (e) => {
-    if (temporaryData.tracking && !temporaryData.animation) {
+  onTouchMove = (e) => {
+    if (
+      this.state.temporaryData.tracking &&
+      !this.state.temporaryData.animation
+    ) {
       if (e.type === "touchmove") {
-        setBasicdata({
-          ...basicdata,
-          ...{
+        this.setState({
+          basicdata: {
+            ...this.state.basicdata,
             end: {
               x: e.targetTouches[0].clientX,
               y: e.targetTouches[0].clientY,
@@ -157,9 +164,9 @@ function App() {
           },
         });
       } else {
-        setBasicdata({
-          ...basicdata,
-          ...{
+        this.setState({
+          basicdata: {
+            ...this.state.basicdata,
             end: {
               x: e.clientX,
               y: e.clientY,
@@ -167,78 +174,89 @@ function App() {
           },
         });
       }
-      setTemporaryData({
-        ...temporaryData,
-        ...{
-          poswidth: basicdata.end.x - basicdata.start.x,
-          posheight: basicdata.end.y - basicdata.start.y,
-          rotate: rotateDirection() * offsetWidthRatio * 15 * angleRatio(),
+      this.setState({
+        temporaryData: {
+          ...this.state.temporaryData,
+          poswidth: this.state.basicdata.end.x - this.state.basicdata.start.x,
+          posheight: this.state.basicdata.end.y - this.state.basicdata.start.y,
+          rotate:
+            this.rotateDirection() *
+            this.offsetWidthRatio() *
+            15 *
+            this.angleRatio(),
         },
       });
     }
   };
 
-  const onTouchEnd = (e) => {
-    setTemporaryData({
-      ...temporaryData,
-      ...{
-        tracking: false,
-        animation: true,
+  onTouchEnd = (e) => {
+    this.setState(
+      {
+        temporaryData: {
+          ...this.state.temporaryData,
+          tracking: false,
+          animation: true,
+        },
       },
-    });
-    // 滑动结束，触发判断
-    // 判断划出面积是否大于0.4
-    if (offsetRatio >= 0.4) {
-      // 最终位移简单设定为x轴200像素的偏移
-      const ratio = Math.abs(temporaryData.posheight / temporaryData.poswidth);
-      setTemporaryData({
-        ...temporaryData,
-        ...{
-          poswidth:
-            temporaryData.poswidth >= 0
-              ? temporaryData.poswidth + 200
-              : temporaryData.poswidth - 200,
-          posheight:
-            temporaryData.posheight >= 0
-              ? Math.abs(temporaryData.poswidth * ratio)
-              : -Math.abs(temporaryData.poswidth * ratio),
-          opacity: 0,
-          swipe: true,
-        },
-      });
-      nextTick();
-    } else {
-      setTemporaryData({
-        ...temporaryData,
-        ...{
-          poswidth: 0,
-          posheight: 0,
-          swipe: false,
-          rotate: 0,
-        },
-      });
-    }
+      () => {
+        // 滑动结束，触发判断
+        // 判断划出面积是否大于0.4
+        if (this.offsetRatio() >= 0.4) {
+          // 最终位移简单设定为x轴200像素的偏移
+          const ratio = Math.abs(
+            this.state.temporaryData.posheight /
+              this.state.temporaryData.poswidth
+          );
+          this.setState({
+            temporaryData: {
+              ...this.state.temporaryData,
+              poswidth:
+                this.state.temporaryData.poswidth >= 0
+                  ? this.state.temporaryData.poswidth + 200
+                  : this.state.temporaryData.poswidth - 200,
+              posheight:
+                this.state.temporaryData.posheight >= 0
+                  ? Math.abs(this.state.temporaryData.poswidth * ratio)
+                  : -Math.abs(this.state.temporaryData.poswidth * ratio),
+              opacity: 0,
+              swipe: true,
+            },
+          });
+          this.nextTick();
+        } else {
+          this.setState({
+            temporaryData: {
+              ...this.state.temporaryData,
+              poswidth: 0,
+              posheight: 0,
+              swipe: false,
+              rotate: 0,
+            },
+          });
+        }
+      }
+    );
   };
 
-  const nextTick = () => {
-    setTemporaryData({
-      ...temporaryData,
-      ...{
-        lastPosWidth: temporaryData.poswidth,
-        lastPosHeight: temporaryData.posheight,
-        lastRotate: temporaryData.rotate,
+  nextTick = () => {
+    this.setState({
+      temporaryData: {
+        ...this.state.temporaryData,
+        lastPosWidth: this.state.temporaryData.poswidth,
+        lastPosHeight: this.state.temporaryData.posheight,
+        lastRotate: this.state.temporaryData.rotate,
         lastZindex: 20,
         currentPage:
-          temporaryData.currentPage === list.length - 1
+          this.state.temporaryData.currentPage === this.state.list.length - 1
             ? 0
-            : temporaryData.currentPage + 1,
+            : this.state.temporaryData.currentPage + 1,
       },
     });
     // currentPage切换，整体dom进行变化，把第一层滑动置最低
     setTimeout(() => {
-      setTemporaryData({
-        ...temporaryData,
-        ...{
+      this.setState({
+        temporaryData: {
+          ...this.state.temporaryData,
           poswidth: 0,
           posheight: 0,
           opacity: 1,
@@ -248,15 +266,15 @@ function App() {
     }, 0);
   };
 
-  const onTransitionEnd = (index) => {
+  onTransitionEnd = (index) => {
     const lastPage =
-      temporaryData.currentPage === 0
-        ? list.length - 1
-        : temporaryData.currentPage - 1;
-    if (temporaryData.swipe && index === lastPage) {
-      setTemporaryData({
-        ...temporaryData,
-        ...{
+      this.state.temporaryData.currentPage === 0
+        ? this.state.list.length - 1
+        : this.state.temporaryData.currentPage - 1;
+    if (this.state.temporaryData.swipe && index === lastPage) {
+      this.setState({
+        temporaryData: {
+          ...this.state.temporaryData,
           animation: true,
           lastPosWidth: 0,
           lastPosHeight: 0,
@@ -269,21 +287,14 @@ function App() {
     }
   };
 
-  const rotateDirection = () => {
-    return temporaryData?.poswidth <= 0 ? -1 : 1;
+  rotateDirection = () => {
+    return this.state.temporaryData?.poswidth <= 0 ? -1 : 1;
   };
 
-  const angleRatio = () => {
-    const height = containerRef.current?.offsetHeight;
-    const offsetY = temporaryData.offsetY;
-    const ratio = -1 * ((2 * offsetY) / height - 1) || 0;
-    return ratio;
-  };
-
-  const inStack = (index, currentPage) => {
+  inStack = (index, currentPage) => {
     let stack = [];
-    let visible = temporaryData.visible;
-    let length = list.length;
+    let visible = this.state.temporaryData.visible;
+    let length = this.state.list.length;
     for (let i = 0; i < visible; i++) {
       if (currentPage + i < length) {
         stack.push(currentPage + i);
@@ -294,108 +305,99 @@ function App() {
     return stack.indexOf(index) >= 0;
   };
 
-  const transform = (index) => {
-    let currentPage = temporaryData.currentPage;
-    let length = list.length;
-    let lastPage = currentPage === 0 ? list.length - 1 : currentPage - 1;
+  transform = (index) => {
+    const currentPage = this.state.temporaryData.currentPage;
+    const length = this.state.list.length;
+    const lastPage =
+      currentPage === 0 ? this.state.list.length - 1 : currentPage - 1;
     let style = {};
-    let visible = temporaryData.visible;
-    if (index === temporaryData.currentPage) {
-      return;
-    }
-    if (inStack(index, currentPage)) {
-      let perIndex =
+    const visible = this.state.temporaryData.visible;
+    if (this.inStack(index, currentPage)) {
+      const perIndex =
         index - currentPage > 0
           ? index - currentPage
           : index - currentPage + length;
-      style["opacity"] = "1";
-      style["transform"] =
-        "translate3D(0,0," + -1 * 60 * (perIndex - offsetRatio) + "px" + ")";
-      style["zIndex"] = visible - perIndex;
-      if (!temporaryData.tracking) {
-        style[temporaryData.prefixes.transition + "TimingFunction"] = "ease";
-        style[temporaryData.prefixes.transition + "Duration"] = 300 + "ms";
+      style = {
+        opacity: 1,
+        transform: `translate3D(0,0,${
+          -1 * 60 * (perIndex - this.offsetRatio())
+        }px)`,
+        zIndex: visible - perIndex,
+      };
+      if (!this.state.temporaryData.tracking) {
+        style[this.state.temporaryData.prefixes.transition + "TimingFunction"] =
+          "ease";
+        style[this.state.temporaryData.prefixes.transition + "Duration"] =
+          300 + "ms";
       }
     } else if (index === lastPage) {
-      style["transform"] =
-        "translate3D(" +
-        temporaryData.lastPosWidth +
-        "px" +
-        "," +
-        temporaryData.lastPosHeight +
-        "px" +
-        ",0px) " +
-        "rotate(" +
-        temporaryData.lastRotate +
-        "deg)";
-      style["opacity"] = temporaryData.lastOpacity;
-      style["zIndex"] = temporaryData.lastZindex;
-      style[temporaryData.prefixes.transition + "TimingFunction"] = "ease";
-      style[temporaryData.prefixes.transition + "Duration"] = 300 + "ms";
+      style = {
+        transform: `translate3d(${this.state.temporaryData.lastPosWidth}px,${this.state.temporaryData.lastPosHeight}px, 0px) rotate(${this.state.temporaryData.lastRotate}deg)`,
+        opacity: this.state.temporaryData.lastOpacity,
+        zIndex: this.state.temporaryData.lastZindex,
+        [this.state.temporaryData.prefixes.transition + "TimingFunction"]:
+          "ease",
+        [this.state.temporaryData.prefixes.transition + "Duration"]: "300ms",
+      };
     } else {
-      style["zIndex"] = "-1";
-      style["transform"] = "translate3D(0,0," + -1 * visible * 60 + "px" + ")";
+      style = {
+        transform: `translate3d(0,0, ${-1 * visible * 60}px)`,
+        opacity: this.state.temporaryData.lastOpacity,
+        zIndex: -1,
+      };
     }
     return style;
   };
 
-  const transformIndex = (index) => {
-    if (index === temporaryData.currentPage) {
-      let style = {};
-      style["transform"] =
-        "translate3D(" +
-        temporaryData.poswidth +
-        "px" +
-        "," +
-        temporaryData.posheight +
-        "px" +
-        ",0px) " +
-        "rotate(" +
-        temporaryData.rotate +
-        "deg)";
-      style["opacity"] = temporaryData.opacity;
-      style["zIndex"] = 10;
-      if (temporaryData.animation) {
-        style[temporaryData.prefixes.transition + "TimingFunction"] = "ease";
-        style[temporaryData.prefixes.transition + "Duration"] =
-          (temporaryData.animation ? 300 : 0) + "ms";
+  transformIndex = (index) => {
+    if (index === this.state.temporaryData.currentPage) {
+      let style = {
+        transform: `translate3d(${this.state.temporaryData.poswidth}px, ${this.state.temporaryData.posheight}px, 0px) rotate(${this.state.temporaryData.rotate}deg)`,
+        opacity: this.state.temporaryData.opacity,
+        zIndex: 10,
+      };
+      if (this.state.temporaryData.animation) {
+        style[this.state.temporaryData.prefixes.transition + "TimingFunction"] =
+          "ease";
+        style[this.state.temporaryData.prefixes.transition + "Duration"] =
+          (this.state.temporaryData.animation ? 300 : 0) + "ms";
       }
       return style;
     }
   };
 
-  return (
-    <div className="app">
-      <div className="stack-wrapper">
-        <ul className="stack" ref={containerRef}>
-          {list.map((item, index) => {
-            const style =
-              index === temporaryData.currentPage
-                ? transformIndex(index)
-                : transform(index);
-            return (
-              <li
-                key={index}
-                className="stack-item"
-                style={style}
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
-                onTouchCancel={onTouchEnd}
-                onMouseDown={onTouchStart}
-                onMouseMove={onTouchMove}
-                onMouseUp={onTouchEnd}
-                onMouseOut={onTouchEnd}
-                onTransitionEnd={(e) => onTransitionEnd(index)}
-              >
-                <img src={item.src} />
-              </li>
-            );
-          })}
-        </ul>
+  render() {
+    return (
+      <div className="app">
+        <div className="stack-wrapper">
+          <ul className="stack" ref={this.containerRef}>
+            {this.state.list.map((item, index) => {
+              const style =
+                index === this.state.temporaryData.currentPage
+                  ? this.transformIndex(index)
+                  : this.transform(index);
+              return (
+                <li
+                  key={index}
+                  className="stack-item"
+                  style={style}
+                  onTouchStart={this.onTouchStart}
+                  onTouchMove={this.onTouchMove}
+                  onTouchEnd={this.onTouchEnd}
+                  onTouchCancel={this.onTouchEnd}
+                  onMouseDown={this.onTouchStart}
+                  onMouseMove={this.onTouchMove}
+                  onMouseUp={this.onTouchEnd}
+                  onMouseOut={this.onTouchEnd}
+                  onTransitionEnd={(e) => this.onTransitionEnd(index)}
+                >
+                  <img src={item.src} />
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 }
-
-export default App;
