@@ -63,7 +63,7 @@ export default class App extends React.Component {
     };
     this.containerRef = createRef(null);
   }
-
+  // 划出面积比例
   offsetRatio = () => {
     const width = this.containerRef.current?.offsetWidth;
     const height = this.containerRef.current?.offsetHeight;
@@ -72,13 +72,14 @@ export default class App extends React.Component {
     const ratio = 1 - (offsetWidth * offsetHeight) / (width * height) || 0;
     return ratio > 1 ? 1 : ratio;
   };
-
+  // 划出宽度比例
   offsetWidthRatio = () => {
     const width = this.containerRef.current?.offsetWidth;
     const offsetWidth = width - Math.abs(this.state.temporaryData.poswidth);
     const ratio = 1 - offsetWidth / width || 0;
     return ratio;
   };
+  // 划出角度比例
   angleRatio = () => {
     const height = this.containerRef.current?.offsetHeight;
     const offsetY = this.state.temporaryData.offsetY;
@@ -306,12 +307,21 @@ export default class App extends React.Component {
   };
 
   transform = (index) => {
-    const currentPage = this.state.temporaryData.currentPage;
-    const length = this.state.list.length;
-    const lastPage =
-      currentPage === 0 ? this.state.list.length - 1 : currentPage - 1;
+    const {
+      currentPage,
+      visible,
+      tracking,
+      prefixes,
+      lastPosWidth,
+      lastPosHeight,
+      lastRotate,
+      lastOpacity,
+      lastZindex,
+    } = this.state.temporaryData;
+    const list = this.state.list;
+    const length = list.length;
+    const lastPage = currentPage === 0 ? length - 1 : currentPage - 1;
     let style = {};
-    const visible = this.state.temporaryData.visible;
     if (this.inStack(index, currentPage)) {
       const perIndex =
         index - currentPage > 0
@@ -324,25 +334,22 @@ export default class App extends React.Component {
         }px)`,
         zIndex: visible - perIndex,
       };
-      if (!this.state.temporaryData.tracking) {
-        style[this.state.temporaryData.prefixes.transition + "TimingFunction"] =
-          "ease";
-        style[this.state.temporaryData.prefixes.transition + "Duration"] =
-          300 + "ms";
+      if (!tracking) {
+        style[`${prefixes.transition}TimingFunction`] = "ease";
+        style[`${prefixes.transition}Duration`] = 300 + "ms";
       }
     } else if (index === lastPage) {
       style = {
-        transform: `translate3d(${this.state.temporaryData.lastPosWidth}px,${this.state.temporaryData.lastPosHeight}px, 0px) rotate(${this.state.temporaryData.lastRotate}deg)`,
-        opacity: this.state.temporaryData.lastOpacity,
-        zIndex: this.state.temporaryData.lastZindex,
-        [this.state.temporaryData.prefixes.transition + "TimingFunction"]:
-          "ease",
-        [this.state.temporaryData.prefixes.transition + "Duration"]: "300ms",
+        transform: `translate3d(${lastPosWidth}px,${lastPosHeight}px, 0px) rotate(${lastRotate}deg)`,
+        opacity: lastOpacity,
+        zIndex: lastZindex,
+        [`${prefixes.transition}TimingFunction`]: "ease",
+        [`${prefixes.transition}Duration`]: "300ms",
       };
     } else {
       style = {
         transform: `translate3d(0,0, ${-1 * visible * 60}px)`,
-        opacity: this.state.temporaryData.lastOpacity,
+        opacity: lastOpacity,
         zIndex: -1,
       };
     }
@@ -350,20 +357,49 @@ export default class App extends React.Component {
   };
 
   transformIndex = (index) => {
-    if (index === this.state.temporaryData.currentPage) {
+    const { currentPage, poswidth, posheight, rotate, animation, prefixes } =
+      this.state.temporaryData;
+    if (index === currentPage) {
       let style = {
-        transform: `translate3d(${this.state.temporaryData.poswidth}px, ${this.state.temporaryData.posheight}px, 0px) rotate(${this.state.temporaryData.rotate}deg)`,
+        transform: `translate3d(${poswidth}px, ${posheight}px, 0px) rotate(${rotate}deg)`,
         opacity: this.state.temporaryData.opacity,
         zIndex: 10,
       };
-      if (this.state.temporaryData.animation) {
-        style[this.state.temporaryData.prefixes.transition + "TimingFunction"] =
-          "ease";
-        style[this.state.temporaryData.prefixes.transition + "Duration"] =
-          (this.state.temporaryData.animation ? 300 : 0) + "ms";
+      if (animation) {
+        style[prefixes.transition + "TimingFunction"] = "ease";
+        style[prefixes.transition + "Duration"] = (animation ? 300 : 0) + "ms";
       }
       return style;
     }
+  };
+
+  prev = () => {
+    this.slideOutside(false);
+  };
+
+  next = () => {
+    this.slideOutside(true);
+  };
+
+  slideOutside = (isNext) => {
+    const width = this.containerRef.current.offsetWidth;
+    this.setState(
+      {
+        temporaryData: {
+          ...this.state.temporaryData,
+          tracking: false,
+          animation: true,
+          poswidth: isNext ? width : -width,
+          posheight: 0,
+          opacity: 0,
+          rotate: isNext ? 3 : -3,
+          swipe: true,
+        },
+      },
+      () => {
+        this.nextTick();
+      }
+    );
   };
 
   render() {
@@ -397,6 +433,8 @@ export default class App extends React.Component {
             })}
           </ul>
         </div>
+        <button onClick={this.prev}>不喜欢</button>
+        <button onClick={this.next}>喜欢</button>
       </div>
     );
   }
